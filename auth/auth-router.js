@@ -1,5 +1,9 @@
 const bcrypt = require('bcryptjs');
 const router = require('express').Router();
+const jwt = require('jsonwebtoken');
+const restrictedMiddleware = require('../api/restricted-middleware');
+
+const { jwtSecret } = require('../config/secrets.js');
 
 const Users = require('../users/users-model.js');
 
@@ -28,8 +32,11 @@ router.post('/login', (req,res) => { //✔
     .first()
     .then(user => {
       if(user && bcrypt.compareSync(password, user.password)) {
+
+        const token = signToken(user)
+
         console.log(user)
-        res.status(200).json({ message: `Logged in: ${user.username}` });
+        res.status(200).json({ token });
       } else {
         res.status(401).json({ error: "Invalid credentials" });
       }
@@ -40,22 +47,30 @@ router.post('/login', (req,res) => { //✔
     });
 });
 
-router.get('/users', (req, res, next) => {
-  let { username, password } = req.body;
-
-  if (username && password) {
-        console.log('GET success')
-        Users.find()
-          .then(users => { 
-            res.status(200).json(users)
-          })
-          .catch(err => {
-            res.status(401).json({ error: "Error with GET" })
-          })
-  } else {
-    res.status(400).json({ error: "You shall not pass" });
-  } 
+router.get('/users', restrictedMiddleware, (req, res, next) => {
+  console.log('GET success')
+  Users.find()
+    .then(users => { 
+      res.status(200).json(users)
+    })
+    .catch(err => {
+      res.status(401).json({ error: "Error with GET" })
+    })
 });
+
+function signToken(user) {
+  const payload = {
+    userId: user.id,
+    username: user.name,
+    department: user.department
+  };
+
+  const options = {
+    expiresIn: "1 minute"
+  };
+
+  return jwt.sign(payload, jwtSecret, options)
+}
 
 
 module.exports = router;
